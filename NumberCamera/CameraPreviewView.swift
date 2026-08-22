@@ -3,6 +3,7 @@ import AVFoundation
 
 struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
+    var orientation: AVCaptureVideoOrientation
     var onPinchZoom: (CGFloat) -> Void
     var onTapToFocus: (CGPoint) -> Void
 
@@ -15,10 +16,9 @@ struct CameraPreviewView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PreviewUIView, context: Context) {
-        // ⭐️ SwiftUI 뷰가 리렌더링되어도 최신 이벤트 클로저가 유지되도록 업데이트
         uiView.onPinchZoom = onPinchZoom
         uiView.onTapToFocus = onTapToFocus
-        uiView.updateOrientation()
+        uiView.updateOrientation(orientation)
     }
 }
 
@@ -39,73 +39,29 @@ class PreviewUIView: UIView {
         get { return videoPreviewLayer.session }
         set {
             videoPreviewLayer.session = newValue
+            // 비율 왜곡 없이 꽉 차게 프레임 내부 설정
             videoPreviewLayer.videoGravity = .resizeAspectFill
-            updateOrientation()
         }
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupGestures()
-        setupNotification()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setupGestures()
-        setupNotification()
-    }
-
-    deinit {
-        NotificationCenter.default.removeObserver(self)
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         videoPreviewLayer.frame = bounds
-        updateOrientation()
     }
 
-    private func setupNotification() {
-        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(orientationChanged),
-            name: UIDevice.orientationDidChangeNotification,
-            object: nil
-        )
-    }
-
-    @objc private func orientationChanged() {
-        DispatchQueue.main.async {
-            self.updateOrientation()
-        }
-    }
-
-    // 폰 방향 변화에 맞춰 카메라 프리뷰 센서 방향 동기화
-    func updateOrientation() {
+    func updateOrientation(_ orientation: AVCaptureVideoOrientation) {
         guard let connection = videoPreviewLayer.connection, connection.isVideoOrientationSupported else { return }
-        
-        let deviceOrientation = UIDevice.current.orientation
-        switch deviceOrientation {
-        case .landscapeLeft:
-            connection.videoOrientation = .landscapeRight
-        case .landscapeRight:
-            connection.videoOrientation = .landscapeLeft
-        case .portraitUpsideDown:
-            connection.videoOrientation = .portraitUpsideDown
-        case .portrait:
-            connection.videoOrientation = .portrait
-        default:
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                switch windowScene.interfaceOrientation {
-                case .landscapeLeft: connection.videoOrientation = .landscapeLeft
-                case .landscapeRight: connection.videoOrientation = .landscapeRight
-                case .portraitUpsideDown: connection.videoOrientation = .portraitUpsideDown
-                default: connection.videoOrientation = .portrait
-                }
-            }
-        }
+        connection.videoOrientation = orientation
     }
 
     private func setupGestures() {

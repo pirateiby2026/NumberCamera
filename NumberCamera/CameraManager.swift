@@ -3,6 +3,7 @@ import AVFoundation
 import Photos
 import UIKit
 import Combine
+import CoreMotion
 
 enum AspectRatioOption: String, CaseIterable, Identifiable {
     case ratio4_3 = "4:3"
@@ -24,13 +25,16 @@ class CameraManager: NSObject, ObservableObject {
     @Published var currentNumber: Int = 1
     @Published var isReady: Bool = false
     @Published var zoomFactor: CGFloat = 1.0
+    @Published var minZoomFactor: CGFloat = 1.0
+    @Published var maxZoomFactor: CGFloat = 5.0
     @Published var isTorchOn: Bool = false
     @Published var selectedRatio: AspectRatioOption = .ratio4_3
+    @Published var customOrientation: AVCaptureVideoOrientation = .portrait
     
-    // 수동으로 번호를 설정했는지 여부 체크
+    // 순정 1x 배율에 해당하는 줌 인덱스 오프셋
+    private var default1xZoomFactor: CGFloat = 1.0
+    
     private var isManualNumberSet: Bool = false
-    
-    // Combine 구독 저장용
     private var cancellables = Set<AnyCancellable>()
     
     let session = AVCaptureSession()
@@ -38,24 +42,60 @@ class CameraManager: NSObject, ObservableObject {
     private var videoDeviceInput: AVCaptureDeviceInput?
     private var videoDevice: AVCaptureDevice?
     
+    private let motionManager = CMMotionManager()
+    
     override init() {
         super.init()
         setupSession()
-        setupVolumeButtonHandler() // 볼륨 버튼 셔터 감지 설정
+        setupVolumeButtonHandler()
+        startMotionUpdates()
     }
     
-    // MARK: - 볼륨 버튼 셔터 핸들러
-    private func setupVolumeButtonHandler() {
-        let audioSession = AVAudioSession.sharedInstance()
-        do {
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            print("AudioSession activation error: \(error)")
+    deinit {
+        motionManager.stopAccelerometerUpdates()
+    }
+    
+    // MARK: - 75도 기울기 감지
+    private func startMotionUpdates() {
+        guard motionManager.isAccelerometerAvailable else { return }
+        motionManager.accelerometerUpdateInterval = 0.1
+        
+        motionManager.startAccelerometerUpdates(to: .main) { [weak self] data, error in
+            guard let data = data, error == nil else { return }
+            self?.processAccelerometerData(data.acceleration)
+        }
+    }
+    
+    private func processAccelerometerData(_ acceleration: CMAcceleration) {
+        let x = acceleration.x
+        let y = acceleration.y
+        let threshold = sin(75.0 * .pi / 180.0) // 75도
+        
+        var newOrientation: AVCaptureVideoOrientation?
+        
+        if y < -threshold {
+            newOrientation = .portrait
+        } else if y > threshold {
+            newOrientation = .portraitUpsideDown
+        } else if x < -threshold {
+            newOrientation = .landscapeRight
+        } else if x > threshold {
+            newOrientation = .landscapeLeft
         }
         
-        // 볼륨 키 변경 이벤트 수신
+        if let newOrientation = newOrientation, newOrientation != customOrientation {
+            DispatchQueue.main.async {
+                self.customOrientation = newOrientation
+            }
+        }
+    }
+    
+    private func setupVolumeButtonHandler() {
+        let audioSession = AVAudioSession.sharedInstance()
+        try? audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        
         audioSession.publisher(for: \.outputVolume)
-            .dropFirst() // 앱 진입 시 초기값 반응 방지
+            .dropFirst()
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.capturePhoto()
@@ -67,16 +107,12 @@ class CameraManager: NSObject, ObservableObject {
     func checkPermissions() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            if !isManualNumberSet {
-                self.fetchNextAvailableNumber()
-            }
+            if !isManualNumberSet { self.fetchNextAvailableNumber() }
             self.startSession()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 if granted {
-                    if !self.isManualNumberSet {
-                        self.fetchNextAvailableNumber()
-                    }
+                    if !self.isManualNumberSet { self.fetchNextAvailableNumber() }
                     self.startSession()
                 }
             }
@@ -85,11 +121,10 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // 사용자가 설정에서 시작 번호를 변경할 때 호출하는 메서드
     func setStartNumber(_ number: Int) {
         DispatchQueue.main.async {
             self.currentNumber = number
-            self.isManualNumberSet = true // 수동 설정 상태로 변경 (앨범 자동 스캔으로 덮어쓰기 방지)
+            self.isManualNumberSet = true
         }
     }
     
@@ -122,7 +157,6 @@ class CameraManager: NSObject, ObservableObject {
             }
             
             DispatchQueue.main.async {
-                // 사용자가 수동으로 설정한 적이 없을 때만 앨범 기반 번호 설정
                 if !self.isManualNumberSet && maxNumber > 0 {
                     self.currentNumber = maxNumber + 1
                 }
@@ -134,7 +168,20 @@ class CameraManager: NSObject, ObservableObject {
         session.beginConfiguration()
         session.sessionPreset = .photo
         
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+        // 듀얼/트리플 가상 카메라 탐색
+        let deviceTypes: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,
+            .builtInDualWideCamera,
+            .builtInWideAngleCamera
+        ]
+        
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: deviceTypes,
+            mediaType: .video,
+            position: .back
+        )
+        
+        guard let device = discoverySession.devices.first,
               let input = try? AVCaptureDeviceInput(device: device) else {
             session.commitConfiguration()
             return
@@ -147,6 +194,25 @@ class CameraManager: NSObject, ObservableObject {
         if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
         
         session.commitConfiguration()
+        
+        // --- 0.5배율 및 1배율 오프셋 정정 계산 ---
+        let switchFactors = device.virtualDeviceSwitchOverVideoZoomFactors
+        if !switchFactors.isEmpty {
+            // 광각(1x) 렌즈가 시작되는 줌 팩터 취득 (보통 2.0 부근)
+            self.default1xZoomFactor = CGFloat(truncating: switchFactors[0])
+        } else {
+            self.default1xZoomFactor = 1.0
+        }
+        
+        let minZoom = device.minAvailableVideoZoomFactor
+        let maxZoom = min(10.0, device.maxAvailableVideoZoomFactor)
+        
+        DispatchQueue.main.async {
+            self.minZoomFactor = minZoom
+            self.maxZoomFactor = maxZoom
+            // 앱 실행 시 실제 '순정 1x(광각)' 화각으로 시작하도록 설정
+            self.setZoom(factor: self.default1xZoomFactor)
+        }
     }
     
     private func startSession() {
@@ -182,11 +248,24 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
+    // UI에 표시할 배율 텍스트 계산 (실제 화각 기준)
+    var displayZoomFactor: CGFloat {
+        if default1xZoomFactor > 1.0 {
+            return zoomFactor / default1xZoomFactor
+        }
+        return zoomFactor
+    }
+    
+    func setDisplayZoom(displayFactor: CGFloat) {
+        let targetZoom = displayFactor * default1xZoomFactor
+        setZoom(factor: targetZoom)
+    }
+    
     func setZoom(factor: CGFloat) {
         guard let device = videoDevice else { return }
         do {
             try device.lockForConfiguration()
-            let clampedFactor = max(1.0, min(factor, device.activeFormat.videoMaxZoomFactor))
+            let clampedFactor = max(minZoomFactor, min(factor, maxZoomFactor))
             device.videoZoomFactor = clampedFactor
             self.zoomFactor = clampedFactor
             device.unlockForConfiguration()
@@ -195,19 +274,16 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // 지정한 화면 좌표(0.0 ~ 1.0)로 초점 및 노출 변경
     func focus(at devicePoint: CGPoint) {
         guard let device = videoDevice else { return }
         do {
             try device.lockForConfiguration()
             
-            // 초점(Focus) 설정
             if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(.autoFocus) {
                 device.focusPointOfInterest = devicePoint
                 device.focusMode = .autoFocus
             }
             
-            // 노출(Exposure) 설정
             if device.isExposurePointOfInterestSupported && device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposurePointOfInterest = devicePoint
                 device.exposureMode = .continuousAutoExposure
@@ -224,23 +300,10 @@ class CameraManager: NSObject, ObservableObject {
         let settings = AVCapturePhotoSettings()
         
         if let photoConnection = photoOutput.connection(with: .video) {
-            let deviceOrientation = UIDevice.current.orientation
-            if let videoOrientation = videoOrientationFrom(deviceOrientation) {
-                photoConnection.videoOrientation = videoOrientation
-            }
+            photoConnection.videoOrientation = customOrientation
         }
         
         photoOutput.capturePhoto(with: settings, delegate: self)
-    }
-    
-    private func videoOrientationFrom(_ deviceOrientation: UIDeviceOrientation) -> AVCaptureVideoOrientation? {
-        switch deviceOrientation {
-        case .portrait: return .portrait
-        case .portraitUpsideDown: return .portraitUpsideDown
-        case .landscapeLeft: return .landscapeRight
-        case .landscapeRight: return .landscapeLeft
-        default: return nil
-        }
     }
     
     private func cropImageToRatio(_ image: UIImage, ratio: AspectRatioOption) -> UIImage {
@@ -292,13 +355,11 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         guard let imageData = photo.fileDataRepresentation(),
               let originalImage = UIImage(data: imageData) else { return }
         
-        // 1. 현재 번호를 즉시 가져오고, UI 상의 currentNumber는 딜레이 없이 즉각 +1 올려줍니다.
         let photoNumber = self.currentNumber
         DispatchQueue.main.async {
             self.currentNumber += 1
         }
         
-        // 2. 백그라운드 이미지 크롭 및 저장 로직 진행
         let croppedImage = self.cropImageToRatio(originalImage, ratio: self.selectedRatio)
         guard let finalImageData = croppedImage.jpegData(compressionQuality: 0.95) else { return }
         
@@ -316,7 +377,6 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
                 creationRequest.addResource(with: .photo, fileURL: tempURL, options: options)
             }) { success, error in
                 try? FileManager.default.removeItem(at: tempURL)
-                
                 if let error = error {
                     print("Photo library save error: \(error.localizedDescription)")
                 }
