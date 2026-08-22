@@ -18,7 +18,19 @@ struct CameraPreviewView: UIViewRepresentable {
     func updateUIView(_ uiView: PreviewUIView, context: Context) {
         uiView.onPinchZoom = onPinchZoom
         uiView.onTapToFocus = onTapToFocus
+        
+        // 세션 연결 상태 재확인 (화면 정지/검은화면 방지)
+        if uiView.session != session {
+            uiView.session = session
+        }
+        
         uiView.updateOrientation(orientation)
+        
+        // 백그라운드 재진입 또는 초기 로드 시 프리뷰 레이어 갱신 강제
+        DispatchQueue.main.async {
+            uiView.setNeedsLayout()
+            uiView.layoutIfNeeded()
+        }
     }
 }
 

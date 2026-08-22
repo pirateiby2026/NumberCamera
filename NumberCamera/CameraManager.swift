@@ -32,6 +32,9 @@ class CameraManager: NSObject, ObservableObject {
     @Published var selectedRatio: AspectRatioOption = .ratio4_3
     @Published var customOrientation: AVCaptureVideoOrientation = .portrait
     
+    // 촬영 대기 중인 음성 노트 저장용
+    private var pendingVoiceNote: String = ""
+    
     // 순정 1x 배율에 해당하는 줌 인덱스 오프셋
     private var default1xZoomFactor: CGFloat = 1.0
     
@@ -47,6 +50,7 @@ class CameraManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        // 1번 코드의 동기적 스레드 초기화 방식을 적용하여 모션 및 카메라 동기화 안정화
         setupSession()
         setupVolumeButtonHandler()
         startMotionUpdates()
@@ -93,7 +97,7 @@ class CameraManager: NSObject, ObservableObject {
     
     private func setupVolumeButtonHandler() {
         let audioSession = AVAudioSession.sharedInstance()
-        try? audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        try? audioSession.setCategory(.ambient, options: .mixWithOthers)
         
         audioSession.publisher(for: \.outputVolume)
             .dropFirst()
@@ -108,7 +112,7 @@ class CameraManager: NSObject, ObservableObject {
     func checkPermissions() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            if !isManualNumberSet { self.fetchNextAvailableNumber() }
+            if !self.isManualNumberSet { self.fetchNextAvailableNumber() }
             self.startSession()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
@@ -120,6 +124,11 @@ class CameraManager: NSObject, ObservableObject {
         default:
             break
         }
+    }
+    
+    // 백그라운드 진입 후 복귀 시 프리뷰 복구용
+    func resumeSession() {
+        startSession()
     }
     
     func setStartNumber(_ number: Int, prefix: String) {
@@ -217,7 +226,9 @@ class CameraManager: NSObject, ObservableObject {
         guard !session.isRunning else { return }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.session.startRunning()
-            DispatchQueue.main.async { self?.isReady = true }
+            DispatchQueue.main.async {
+                self?.isReady = true
+            }
         }
     }
     
@@ -293,7 +304,9 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    func capturePhoto() {
+    // 음성 노트(voiceNote) 지원 매개변수를 추가한 캡처 함수
+    func capturePhoto(voiceNote: String = "") {
+        self.pendingVoiceNote = voiceNote
         let settings = AVCapturePhotoSettings()
         
         if let photoConnection = photoOutput.connection(with: .video) {
@@ -352,22 +365,29 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         guard let imageData = photo.fileDataRepresentation(),
               let originalImage = UIImage(data: imageData) else { return }
         
-        // 1. 촬영 시점의 접두어와 번호를 즉시 스냅샷(동기화)
+        // 1. 촬영 시점의 접두어, 번호, 음성노트 스냅샷
         let currentPrefix = self.prefixText.trimmingCharacters(in: .whitespacesAndNewlines)
         let validPrefix = currentPrefix.isEmpty ? "IMG" : currentPrefix
         let photoNumber = self.currentNumber
+        let note = self.pendingVoiceNote.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // 다음 번호 미리 증가
+        // 다음 번호 미리 증가 및 사용 완료한 음성노트 초기화
         DispatchQueue.main.async {
             self.currentNumber += 1
+            self.pendingVoiceNote = ""
         }
         
         // 2. 이미지 크롭 처리
         let croppedImage = self.cropImageToRatio(originalImage, ratio: self.selectedRatio)
         guard let finalImageData = croppedImage.jpegData(compressionQuality: 0.95) else { return }
         
-        // 3. 파일명 포맷 생성 (예: 석탄부두1BL_0001.jpg)
-        let formattedName = String(format: "%@_%04d.jpg", validPrefix, photoNumber)
+        // 3. 파일명 포맷 생성
+        let formattedName: String
+        if note.isEmpty {
+            formattedName = String(format: "%@_%04d.jpg", validPrefix, photoNumber)
+        } else {
+            formattedName = String(format: "%@_%04d(%@).jpg", validPrefix, photoNumber, note)
+        }
         
         // 4. 임시 디렉토리에 해당 파일명으로 저장
         let tempDirectory = FileManager.default.temporaryDirectory
@@ -379,7 +399,7 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
             // 5. Photos 라이브러리에 원본 파일명 옵션 지정 후 저장
             PHPhotoLibrary.shared().performChanges({
                 let options = PHAssetResourceCreationOptions()
-                options.originalFilename = formattedName // 핵심: 원본 파일명 명시
+                options.originalFilename = formattedName
                 
                 let creationRequest = PHAssetCreationRequest.forAsset()
                 creationRequest.addResource(with: .photo, fileURL: tempFileURL, options: options)

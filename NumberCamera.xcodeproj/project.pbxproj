@@ -10,9 +10,22 @@
 		6C521CBA302C271800B11CE1 /* NumberCamera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NumberCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6C786A4430397798007C99D7 /* Exceptions for "NumberCamera" folder in "NumberCamera" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 6C521CB9302C271800B11CE1 /* NumberCamera */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		6C521CBC302C271800B11CE1 /* NumberCamera */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6C786A4430397798007C99D7 /* Exceptions for "NumberCamera" folder in "NumberCamera" target */,
+			);
 			path = NumberCamera;
 			sourceTree = "<group>";
 		};
@@ -254,10 +267,13 @@
 				DEVELOPMENT_TEAM = H2Q5F67J76;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NumberCamera/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "사진번호";
 				INFOPLIST_KEY_NSCameraUsageDescription = "카메라 권한이 필요합니다.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "음성메모 권한요청";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "저장 권한이 필요합니다.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "사진앨범 접근 권한이 필요합니다.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "음성메모 권한요청";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -290,10 +306,13 @@
 				DEVELOPMENT_TEAM = H2Q5F67J76;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NumberCamera/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "사진번호";
 				INFOPLIST_KEY_NSCameraUsageDescription = "카메라 권한이 필요합니다.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "음성메모 권한요청";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "저장 권한이 필요합니다.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "사진앨범 접근 권한이 필요합니다.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "음성메모 권한요청";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

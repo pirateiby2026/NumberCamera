@@ -1,9 +1,15 @@
 import SwiftUI
 import MediaPlayer
+import Speech
+import AVFoundation
 
+// MARK: - ContentView
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
+    @StateObject private var speechRecognizer = SpeechRecognizer()
     @State private var isShowingSettings = false
+    
+    @Environment(\.scenePhase) private var scenePhase
     
     var isLandscape: Bool {
         return cameraManager.customOrientation == .landscapeLeft || cameraManager.customOrientation == .landscapeRight
@@ -22,7 +28,7 @@ struct ContentView: View {
                     isLandscape: isLandscape
                 )
                 
-                // 1. 카메라 프리뷰 (중앙 정렬)
+                // 1. 카메라 프리뷰
                 CameraPreviewView(
                     session: cameraManager.session,
                     orientation: cameraManager.customOrientation,
@@ -37,6 +43,21 @@ struct ContentView: View {
                 .frame(width: previewSize.width, height: previewSize.height)
                 .clipped()
                 
+                // 음성 인식 실시간 자막
+                if speechRecognizer.isRecording {
+                    VStack {
+                        Spacer()
+                        Text(speechRecognizer.transcribedText.isEmpty ? "음성을 듣는 중..." : speechRecognizer.transcribedText)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.yellow.opacity(0.9))
+                            .cornerRadius(20)
+                            .padding(.bottom, isLandscape ? 100 : 160)
+                    }
+                }
+                
                 // 2. 오버레이 컨트롤
                 if isLandscape {
                     landscapeOverlay(screenSize: screenSize)
@@ -48,13 +69,20 @@ struct ContentView: View {
         .ignoresSafeArea()
         .onAppear {
             cameraManager.checkPermissions()
+            speechRecognizer.requestPermissions()
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                cameraManager.checkPermissions()
+                cameraManager.resumeSession()
+            }
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(cameraManager: cameraManager)
         }
     }
     
-    // MARK: - 세로 레이아웃
+    // MARK: - 세로 레이아웃 (Portrait)
     @ViewBuilder
     private func portraitOverlay(screenSize: CGSize) -> some View {
         VStack(spacing: 0) {
@@ -70,7 +98,7 @@ struct ContentView: View {
             .padding(.top, 50)
             .padding(.bottom, 10)
             
-            // 상단 오른쪽에 사진번호 표시
+            // 상단 오른쪽 사진번호 표시
             HStack {
                 Spacer()
                 numberTag
@@ -83,17 +111,26 @@ struct ContentView: View {
             zoomControlBar
                 .padding(.bottom, 20)
             
-            // 하단 셔터 버튼 영역
-            HStack {
+            // 하단 영역: 스피커 버튼을 맨 좌측에 배치하고 셔터 버튼을 화면 중앙에 정렬
+            HStack(spacing: 0) {
+                speakerButton
+                    .padding(.leading, 24) // 맨 좌측 여백
+                
                 Spacer()
+                
                 shutterButton
+                
                 Spacer()
+                
+                // 좌우 균형 맞춤용 더미 공간 (스피커 버튼 크기 + 여백)
+                Color.clear
+                    .frame(width: 44 + 24, height: 44)
             }
             .padding(.bottom, 40)
         }
     }
     
-    // MARK: - 가로 레이아웃 (검정 영역 위치 교정)
+    // MARK: - 가로 레이아웃 (Landscape)
     @ViewBuilder
     private func landscapeOverlay(screenSize: CGSize) -> some View {
         HStack(spacing: 0) {
@@ -110,17 +147,28 @@ struct ContentView: View {
             
             Spacer()
             
-            // 우측 컨트롤 & 셔터 바
-            VStack {
+            // 우측 영역: 사진번호 태그 -> 스피커 버튼 -> 셔터 버튼 -> 하단 배율 숫자
+            VStack(spacing: 0) {
                 numberTag
                     .padding(.top, 30)
                 
+                // 상단 번호표와 스피커 사이 유연한 공간
+                Spacer().frame(height: 16)
+                
+                // 셔터 위쪽(사진번호 아래 영역)으로 이동한 스피커 버튼
+                speakerButton
+                
+                // 스피커와 셔터 사이 여백
                 Spacer()
                 
-                zoomControlBar
-                    .padding(.vertical, 10)
-                
+                // 셔터 버튼
                 shutterButton
+                
+                // 셔터와 하단 배율 숫자 사이 공간
+                Spacer()
+                
+                // 하단 배율 조절 바 (숫자)
+                zoomControlBar
                     .padding(.bottom, 30)
             }
             .padding(.trailing, 30)
@@ -135,6 +183,23 @@ struct ContentView: View {
                 .foregroundColor(cameraManager.isTorchOn ? .yellow : .white)
                 .frame(width: 44, height: 44)
                 .background(Color.black.opacity(0.4))
+                .clipShape(Circle())
+        }
+    }
+    
+    private var speakerButton: some View {
+        Button(action: {
+            if speechRecognizer.isRecording {
+                speechRecognizer.stopRecording { _ in }
+            } else {
+                speechRecognizer.startRecording()
+            }
+        }) {
+            Image(systemName: speechRecognizer.isRecording ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(speechRecognizer.isRecording ? .yellow : .white)
+                .frame(width: 44, height: 44)
+                .background(Color.black.opacity(0.5))
                 .clipShape(Circle())
         }
     }
@@ -162,7 +227,6 @@ struct ContentView: View {
         }
     }
     
-    // 사진 번호 표시 태그
     private var numberTag: some View {
         Text(String(format: "%@_%04d", cameraManager.prefixText, cameraManager.currentNumber))
             .font(.system(size: 29, weight: .bold, design: .monospaced))
@@ -174,17 +238,28 @@ struct ContentView: View {
     }
     
     private var shutterButton: some View {
-        Button(action: { cameraManager.capturePhoto() }) {
-            Circle()
-                .stroke(Color.white, lineWidth: 4)
-                .frame(width: 72, height: 72)
-                .overlay(
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 60, height: 60)
-                )
-                .shadow(radius: 4)
-        }
+        Circle()
+            .stroke(speechRecognizer.isRecording ? Color.red : Color.white, lineWidth: 4)
+            .frame(width: 72, height: 72)
+            .overlay(
+                Circle()
+                    .fill(speechRecognizer.isRecording ? Color.red : Color.white)
+                    .frame(width: 60, height: 60)
+            )
+            .shadow(radius: 4)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        if !speechRecognizer.isRecording {
+                            speechRecognizer.startRecording()
+                        }
+                    }
+                    .onEnded { _ in
+                        speechRecognizer.stopRecording { voiceNote in
+                            cameraManager.capturePhoto(voiceNote: voiceNote)
+                        }
+                    }
+            )
     }
     
     private var zoomControlBar: some View {
