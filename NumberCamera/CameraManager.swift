@@ -23,6 +23,7 @@ enum AspectRatioOption: String, CaseIterable, Identifiable {
 
 class CameraManager: NSObject, ObservableObject {
     @Published var currentNumber: Int = 1
+    @Published var prefixText: String = "IMG" // 사진 접두사 (기본값: IMG)
     @Published var isReady: Bool = false
     @Published var zoomFactor: CGFloat = 1.0
     @Published var minZoomFactor: CGFloat = 1.0
@@ -121,9 +122,10 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    func setStartNumber(_ number: Int) {
+    func setStartNumber(_ number: Int, prefix: String) {
         DispatchQueue.main.async {
             self.currentNumber = number
+            self.prefixText = prefix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "IMG" : prefix
             self.isManualNumberSet = true
         }
     }
@@ -137,7 +139,7 @@ class CameraManager: NSObject, ObservableObject {
             let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
             
             var maxNumber = 0
-            let regex = try? NSRegularExpression(pattern: "IMG_(\\d{4})", options: .caseInsensitive)
+            let regex = try? NSRegularExpression(pattern: ".*_(\\d{4})", options: .caseInsensitive)
             
             let countToScan = min(fetchResult.count, 100)
             for i in 0..<countToScan {
@@ -168,7 +170,6 @@ class CameraManager: NSObject, ObservableObject {
         session.beginConfiguration()
         session.sessionPreset = .photo
         
-        // 듀얼/트리플 가상 카메라 탐색
         let deviceTypes: [AVCaptureDevice.DeviceType] = [
             .builtInTripleCamera,
             .builtInDualWideCamera,
@@ -195,10 +196,8 @@ class CameraManager: NSObject, ObservableObject {
         
         session.commitConfiguration()
         
-        // --- 0.5배율 및 1배율 오프셋 정정 계산 ---
         let switchFactors = device.virtualDeviceSwitchOverVideoZoomFactors
         if !switchFactors.isEmpty {
-            // 광각(1x) 렌즈가 시작되는 줌 팩터 취득 (보통 2.0 부근)
             self.default1xZoomFactor = CGFloat(truncating: switchFactors[0])
         } else {
             self.default1xZoomFactor = 1.0
@@ -210,7 +209,6 @@ class CameraManager: NSObject, ObservableObject {
         DispatchQueue.main.async {
             self.minZoomFactor = minZoom
             self.maxZoomFactor = maxZoom
-            // 앱 실행 시 실제 '순정 1x(광각)' 화각으로 시작하도록 설정
             self.setZoom(factor: self.default1xZoomFactor)
         }
     }
@@ -248,7 +246,6 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // UI에 표시할 배율 텍스트 계산 (실제 화각 기준)
     var displayZoomFactor: CGFloat {
         if default1xZoomFactor > 1.0 {
             return zoomFactor / default1xZoomFactor
@@ -355,34 +352,49 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         guard let imageData = photo.fileDataRepresentation(),
               let originalImage = UIImage(data: imageData) else { return }
         
+        // 1. 촬영 시점의 접두어와 번호를 즉시 스냅샷(동기화)
+        let currentPrefix = self.prefixText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validPrefix = currentPrefix.isEmpty ? "IMG" : currentPrefix
         let photoNumber = self.currentNumber
+        
+        // 다음 번호 미리 증가
         DispatchQueue.main.async {
             self.currentNumber += 1
         }
         
+        // 2. 이미지 크롭 처리
         let croppedImage = self.cropImageToRatio(originalImage, ratio: self.selectedRatio)
         guard let finalImageData = croppedImage.jpegData(compressionQuality: 0.95) else { return }
         
-        let formattedName = String(format: "IMG_%04d.jpg", photoNumber)
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(formattedName)
+        // 3. 파일명 포맷 생성 (예: 석탄부두1BL_0001.jpg)
+        let formattedName = String(format: "%@_%04d.jpg", validPrefix, photoNumber)
+        
+        // 4. 임시 디렉토리에 해당 파일명으로 저장
+        let tempDirectory = FileManager.default.temporaryDirectory
+        let tempFileURL = tempDirectory.appendingPathComponent(formattedName)
         
         do {
-            try finalImageData.write(to: tempURL)
+            try finalImageData.write(to: tempFileURL)
             
+            // 5. Photos 라이브러리에 원본 파일명 옵션 지정 후 저장
             PHPhotoLibrary.shared().performChanges({
                 let options = PHAssetResourceCreationOptions()
-                options.originalFilename = formattedName
+                options.originalFilename = formattedName // 핵심: 원본 파일명 명시
                 
                 let creationRequest = PHAssetCreationRequest.forAsset()
-                creationRequest.addResource(with: .photo, fileURL: tempURL, options: options)
+                creationRequest.addResource(with: .photo, fileURL: tempFileURL, options: options)
             }) { success, error in
-                try? FileManager.default.removeItem(at: tempURL)
+                // 저장 완료 후 임시 파일 삭제
+                try? FileManager.default.removeItem(at: tempFileURL)
+                
                 if let error = error {
-                    print("Photo library save error: \(error.localizedDescription)")
+                    print("사진 저장 실패: \(error.localizedDescription)")
+                } else {
+                    print("사진 저장 성공: \(formattedName)")
                 }
             }
         } catch {
-            print("Photo save error: \(error)")
+            print("임시 파일 생성 실패: \(error)")
         }
     }
 }

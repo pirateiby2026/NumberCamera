@@ -2,10 +2,10 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var cameraManager: CameraManager
+    @State private var inputPrefix: String = ""
     @State private var inputNumber: String = ""
     @Environment(\.dismiss) private var dismiss
     
-    // 1 이상 정수만 유효한 값으로 판단
     private var isValidNumber: Bool {
         guard let num = Int(inputNumber) else { return false }
         return num > 0
@@ -15,9 +15,16 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section(
-                    header: Text("사진 시작 번호 설정"),
-                    footer: Text("설정한 번호부터 파일명(IMG_xxxx)이 새로 지정됩니다.")
+                    header: Text("사진 이름 및 시작 번호 설정"),
+                    footer: Text("예: '석탄부두 1BL' 입력 및 시작번호 1 설정 시 -> 석탄부두 1BL_0001.jpg 로 생성됩니다.")
                 ) {
+                    HStack {
+                        Text("사진 접두사")
+                        Spacer()
+                        TextField("예: 석탄부두 1BL", text: $inputPrefix)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    
                     HStack {
                         Text("시작 번호")
                         Spacer()
@@ -28,18 +35,18 @@ struct SettingsView: View {
                     
                     Button(action: {
                         if let num = Int(inputNumber) {
-                            cameraManager.setStartNumber(num)
+                            cameraManager.setStartNumber(num, prefix: inputPrefix)
                             dismiss()
                         }
                     }) {
                         HStack {
                             Spacer()
-                            Text("번호 적용하기")
+                            Text("적용하기")
                                 .fontWeight(.bold)
                             Spacer()
                         }
                     }
-                    .disabled(!isValidNumber) // 유효하지 않은 숫입력 시 버튼 비활성화
+                    .disabled(!isValidNumber)
                 }
             }
             .navigationTitle("설정")
@@ -52,6 +59,7 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
+                inputPrefix = cameraManager.prefixText
                 inputNumber = String(cameraManager.currentNumber)
             }
         }

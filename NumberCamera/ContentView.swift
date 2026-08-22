@@ -16,14 +16,13 @@ struct ContentView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                // 가로/세로 오리엔테이션에 맞춰 정확히 계산된 프리뷰 크기
                 let previewSize = calculatePreviewSize(
                     screenSize: screenSize,
                     ratio: cameraManager.selectedRatio,
                     isLandscape: isLandscape
                 )
                 
-                // 1. 카메라 프리뷰
+                // 1. 카메라 프리뷰 (중앙 정렬)
                 CameraPreviewView(
                     session: cameraManager.session,
                     orientation: cameraManager.customOrientation,
@@ -38,7 +37,7 @@ struct ContentView: View {
                 .frame(width: previewSize.width, height: previewSize.height)
                 .clipped()
                 
-                // 2. 오버레이 컨트롤 (가로/세로 대응)
+                // 2. 오버레이 컨트롤
                 if isLandscape {
                     landscapeOverlay(screenSize: screenSize)
                 } else {
@@ -59,53 +58,46 @@ struct ContentView: View {
     @ViewBuilder
     private func portraitOverlay(screenSize: CGSize) -> some View {
         VStack(spacing: 0) {
-            // 상단 마스크 & 컨트롤
-            VStack {
-                HStack {
-                    flashButton
-                    Spacer()
-                    ratioButton
-                    Spacer()
-                    settingsButton
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 50)
-                
-                HStack {
-                    Spacer()
-                    numberTag
-                        .padding(.trailing, 20)
-                        .padding(.top, 10)
-                }
+            // 상단 컨트롤 바
+            HStack {
+                flashButton
+                Spacer()
+                ratioButton
+                Spacer()
+                settingsButton
             }
-            .frame(maxWidth: .infinity)
-            .background(Color.black.opacity(0.5))
+            .padding(.horizontal, 20)
+            .padding(.top, 50)
+            .padding(.bottom, 10)
+            
+            // 상단 오른쪽에 사진번호 표시
+            HStack {
+                Spacer()
+                numberTag
+                    .padding(.trailing, 20)
+            }
             
             Spacer()
             
-            // 배율 버튼
+            // 배율 조절 바
             zoomControlBar
-                .padding(.bottom, 12)
+                .padding(.bottom, 20)
             
-            // 하단 셔터 마스크
-            VStack {
-                HStack {
-                    Spacer()
-                    shutterButton
-                    Spacer()
-                }
-                .padding(.bottom, 40)
+            // 하단 셔터 버튼 영역
+            HStack {
+                Spacer()
+                shutterButton
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
-            .background(Color.black.opacity(0.5))
+            .padding(.bottom, 40)
         }
     }
     
-    // MARK: - 가로 레이아웃
+    // MARK: - 가로 레이아웃 (검정 영역 위치 교정)
     @ViewBuilder
     private func landscapeOverlay(screenSize: CGSize) -> some View {
         HStack(spacing: 0) {
-            // 좌측 바
+            // 좌측 컨트롤 바
             VStack {
                 flashButton
                 Spacer()
@@ -114,12 +106,11 @@ struct ContentView: View {
                 settingsButton
             }
             .padding(.vertical, 40)
-            .padding(.horizontal, 16)
-            .background(Color.black.opacity(0.5))
+            .padding(.leading, 30)
             
             Spacer()
             
-            // 우측 셔터 및 컨트롤 바
+            // 우측 컨트롤 & 셔터 바
             VStack {
                 numberTag
                     .padding(.top, 30)
@@ -131,11 +122,8 @@ struct ContentView: View {
                 
                 shutterButton
                     .padding(.bottom, 30)
-                
-                Spacer()
             }
-            .padding(.horizontal, 16)
-            .background(Color.black.opacity(0.5))
+            .padding(.trailing, 30)
         }
     }
     
@@ -146,7 +134,7 @@ struct ContentView: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(cameraManager.isTorchOn ? .yellow : .white)
                 .frame(width: 44, height: 44)
-                .background(Color.black.opacity(0.3))
+                .background(Color.black.opacity(0.4))
                 .clipShape(Circle())
         }
     }
@@ -169,18 +157,19 @@ struct ContentView: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(.white)
                 .frame(width: 44, height: 44)
-                .background(Color.black.opacity(0.3))
+                .background(Color.black.opacity(0.4))
                 .clipShape(Circle())
         }
     }
     
+    // 사진 번호 표시 태그
     private var numberTag: some View {
-        Text(String(format: "IMG_%04d", cameraManager.currentNumber))
-            .font(.system(size: 22, weight: .bold, design: .monospaced))
+        Text(String(format: "%@_%04d", cameraManager.prefixText, cameraManager.currentNumber))
+            .font(.system(size: 29, weight: .bold, design: .monospaced))
             .foregroundColor(.yellow)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(Color.black.opacity(0.6))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.5))
             .cornerRadius(10)
     }
     
@@ -221,15 +210,12 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - 가로/세로 호환 비율 계산
     private func calculatePreviewSize(screenSize: CGSize, ratio: AspectRatioOption, isLandscape: Bool) -> CGSize {
         let screenW = screenSize.width
         let screenH = screenSize.height
-        
-        let ratioVal = ratio.ratioValue // 4:3 -> 0.75, 16:9 -> 0.5625, 1:1 -> 1.0
+        let ratioVal = ratio.ratioValue
         
         if isLandscape {
-            // 가로 모드일 때는 Height 기준으로 Width를 계산
             var targetH = screenH
             var targetW = targetH / ratioVal
             
@@ -239,7 +225,6 @@ struct ContentView: View {
             }
             return CGSize(width: targetW, height: targetH)
         } else {
-            // 세로 모드일 때는 Width 기준으로 Height를 계산
             var targetW = screenW
             var targetH = targetW / ratioVal
             
