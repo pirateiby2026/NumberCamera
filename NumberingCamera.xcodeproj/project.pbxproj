@@ -7,26 +7,26 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		6C521CBA302C271800B11CE1 /* NumberCamera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NumberCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C521CBA302C271800B11CE1 /* NumberingCamera.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NumberingCamera.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		6C786A4430397798007C99D7 /* Exceptions for "NumberCamera" folder in "NumberCamera" target */ = {
+		6C786A4430397798007C99D7 /* Exceptions for "NumberingCamera" folder in "NumberingCamera" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 6C521CB9302C271800B11CE1 /* NumberCamera */;
+			target = 6C521CB9302C271800B11CE1 /* NumberingCamera */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		6C521CBC302C271800B11CE1 /* NumberCamera */ = {
+		6C521CBC302C271800B11CE1 /* NumberingCamera */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				6C786A4430397798007C99D7 /* Exceptions for "NumberCamera" folder in "NumberCamera" target */,
+				6C786A4430397798007C99D7 /* Exceptions for "NumberingCamera" folder in "NumberingCamera" target */,
 			);
-			path = NumberCamera;
+			path = NumberingCamera;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -45,7 +45,7 @@
 		6C521CB1302C271800B11CE1 = {
 			isa = PBXGroup;
 			children = (
-				6C521CBC302C271800B11CE1 /* NumberCamera */,
+				6C521CBC302C271800B11CE1 /* NumberingCamera */,
 				6C521CBB302C271800B11CE1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -53,7 +53,7 @@
 		6C521CBB302C271800B11CE1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				6C521CBA302C271800B11CE1 /* NumberCamera.app */,
+				6C521CBA302C271800B11CE1 /* NumberingCamera.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -61,9 +61,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		6C521CB9302C271800B11CE1 /* NumberCamera */ = {
+		6C521CB9302C271800B11CE1 /* NumberingCamera */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 6C521CC5302C271800B11CE1 /* Build configuration list for PBXNativeTarget "NumberCamera" */;
+			buildConfigurationList = 6C521CC5302C271800B11CE1 /* Build configuration list for PBXNativeTarget "NumberingCamera" */;
 			buildPhases = (
 				6C521CB6302C271800B11CE1 /* Sources */,
 				6C521CB7302C271800B11CE1 /* Frameworks */,
@@ -74,13 +74,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				6C521CBC302C271800B11CE1 /* NumberCamera */,
+				6C521CBC302C271800B11CE1 /* NumberingCamera */,
 			);
-			name = NumberCamera;
+			name = NumberingCamera;
 			packageProductDependencies = (
 			);
 			productName = NumberCamera;
-			productReference = 6C521CBA302C271800B11CE1 /* NumberCamera.app */;
+			productReference = 6C521CBA302C271800B11CE1 /* NumberingCamera.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -98,7 +98,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "NumberCamera" */;
+			buildConfigurationList = 6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "NumberingCamera" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -112,7 +112,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				6C521CB9302C271800B11CE1 /* NumberCamera */,
+				6C521CB9302C271800B11CE1 /* NumberingCamera */,
 			);
 		};
 /* End PBXProject section */
@@ -268,7 +268,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NumberCamera/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "사진촬영 및 번호 부착용 ";
+				INFOPLIST_KEY_CFBundleDisplayName = NumberingCamera;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "사진촬영 및 번호 부착용 ";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "사진촬영시 사진파일에 음성메모 인식용";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "사진촬영 및 번호 부착용 ";
@@ -284,7 +285,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "-.NumberCamera";
+				PRODUCT_BUNDLE_IDENTIFIER = "-.NumberingCamera";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -307,7 +308,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NumberCamera/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "사진촬영 및 번호 부착용 ";
+				INFOPLIST_KEY_CFBundleDisplayName = NumberingCamera;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "사진촬영 및 번호 부착용 ";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "사진촬영시 사진파일에 음성메모 인식용";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "사진촬영 및 번호 부착용 ";
@@ -323,7 +325,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "-.NumberCamera";
+				PRODUCT_BUNDLE_IDENTIFIER = "-.NumberingCamera";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -338,7 +340,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "NumberCamera" */ = {
+		6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "NumberingCamera" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				6C521CC3302C271800B11CE1 /* Debug */,
@@ -347,7 +349,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		6C521CC5302C271800B11CE1 /* Build configuration list for PBXNativeTarget "NumberCamera" */ = {
+		6C521CC5302C271800B11CE1 /* Build configuration list for PBXNativeTarget "NumberingCamera" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				6C521CC6302C271800B11CE1 /* Debug */,
