@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneInjectionUsageDescription</key>
-	<string>음성메모 마이크 권한요청</string>
+	<string>사진촬영시 사진파일에 음성메모 인식용</string>
 </dict>
 </plist>
