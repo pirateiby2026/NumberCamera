@@ -5,90 +5,100 @@ import AVFoundation
 struct VolumeButtonHandlerView: UIViewRepresentable {
     var onVolumeDownPressed: () -> Void
     var onVolumeUpPressed: () -> Void
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(onVolumeDownPressed: onVolumeDownPressed, onVolumeUpPressed: onVolumeUpPressed)
     }
-    
+
     func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.isHidden = true
+        // 🛑 [중요] 화면 좌측 상단 (0,0) 위치에 2x2 크기로 배치 (iOS가 보이지 않는 뷰로 인식하지 못하게 함)
+        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
+        containerView.backgroundColor = .clear
+
+        let volumeView = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
+        volumeView.alpha = 0.05 // opacity를 너무 낮추지 않고 0.05로 유지
+        volumeView.isUserInteractionEnabled = false
         
-        // 화면 밖으로 MPVolumeView를 보내서 화면에 볼륨 슬라이더가 나타나지 않게 감춤
-        let volumeView = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 0, height: 0))
-        view.addSubview(volumeView)
-        
-        context.coordinator.startObserving()
-        return view
+        containerView.addSubview(volumeView)
+
+        // 내부 UISlider 감지 및 이벤트 등록
+        if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
+            context.coordinator.setupSlider(slider)
+        }
+
+        return containerView
     }
-    
+
     func updateUIView(_ uiView: UIView, context: Context) {}
-    
+
     static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
-        coordinator.stopObserving()
+        coordinator.cleanup()
     }
-    
+
+    // MARK: - Coordinator
     class Coordinator: NSObject {
         var onVolumeDownPressed: () -> Void
         var onVolumeUpPressed: () -> Void
         
+        weak var slider: UISlider?
+        private var isProcessing = false
         private var initialVolume: Float = 0.5
-        private var observation: NSKeyValueObservation?
-        
+
         init(onVolumeDownPressed: @escaping () -> Void, onVolumeUpPressed: @escaping () -> Void) {
             self.onVolumeDownPressed = onVolumeDownPressed
             self.onVolumeUpPressed = onVolumeUpPressed
             super.init()
         }
-        
-        func startObserving() {
-            let audioSession = AVAudioSession.sharedInstance()
+
+        func setupSlider(_ slider: UISlider) {
+            self.slider = slider
+            
+            // 오디오 세션 활성화
+            let session = AVAudioSession.sharedInstance()
             do {
-                try audioSession.setCategory(.playAndRecord, options: [.mixWithOthers, .defaultToSpeaker])
-                try audioSession.setActive(true)
+                try session.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker, .mixWithOthers])
+                try session.setActive(true)
             } catch {
-                print("VolumeAudioSession 설정 오류: \(error)")
+                print("AudioSession Setup Error: \(error)")
             }
-            
-            initialVolume = audioSession.outputVolume
-            
-            // 볼륨 값 변화 감지
-            observation = audioSession.observe(\.outputVolume, options: [.new]) { [weak self] session, change in
-                guard let self = self, let newVolume = change.newValue else { return }
-                
-                // 연속 감지 및 연산차 오차 방지
-                if abs(newVolume - self.initialVolume) > 0.001 {
-                    if newVolume < self.initialVolume {
-                        // 볼륨 다운 버튼 클릭
-                        DispatchQueue.main.async {
-                            self.onVolumeDownPressed()
-                        }
-                    } else if newVolume > self.initialVolume {
-                        // 볼륨 업 버튼 클릭
-                        DispatchQueue.main.async {
-                            self.onVolumeUpPressed()
-                        }
-                    }
-                    
-                    // 시스템 볼륨 레벨을 항상 일정 수준으로 다시 리셋하여 연속 클릭 가능하도록 유지
-                    self.resetSystemVolume()
+
+            // 슬라이더 값을 중간(0.5)으로 고정
+            slider.setValue(0.5, animated: false)
+            initialVolume = 0.5
+
+            // 슬라이더 값 변경 감지 (물리 버튼 작동 시 UISlider 값이 즉시 변경됨)
+            slider.addTarget(self, action: #selector(sliderValueChanged(_:)), for: .valueChanged)
+        }
+
+        func cleanup() {
+            slider?.removeTarget(self, action: #selector(sliderValueChanged(_:)), for: .valueChanged)
+        }
+
+        @objc private func sliderValueChanged(_ sender: UISlider) {
+            guard !isProcessing else { return }
+            isProcessing = true
+
+            let currentVolume = sender.value
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                if currentVolume > self.initialVolume {
+                    self.onVolumeUpPressed()
+                } else if currentVolume < self.initialVolume {
+                    self.onVolumeDownPressed()
+                } else {
+                    self.onVolumeUpPressed()
+                }
+
+                // 연속 연타를 위해 다시 슬라이더 값을 0.5로 즉시 원복
+                sender.setValue(0.5, animated: false)
+                self.initialVolume = 0.5
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.isProcessing = false
                 }
             }
-        }
-        
-        private func resetSystemVolume() {
-            // MPVolumeView의 Slider 제어로 볼륨 레벨 리셋
-            let volumeView = MPVolumeView()
-            if let slider = volumeView.subviews.first(where: { $0 is UISlider }) as? UISlider {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                    slider.value = 0.5
-                }
-            }
-        }
-        
-        func stopObserving() {
-            observation?.invalidate()
-            observation = nil
         }
     }
 }

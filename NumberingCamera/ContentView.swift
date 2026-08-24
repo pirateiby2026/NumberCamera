@@ -22,6 +22,20 @@ struct ContentView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
+                // 🛑 [핵심 보완] 볼륨 버튼 이벤트 가로채기 핸들러 배치
+                // 1x1 크기로 실제 화면에 렌더링되도록 배치하여 시스템 볼륨 HUD 출력을 방지합니다.
+                VolumeButtonHandlerView(
+                    onVolumeDownPressed: {
+                        cameraManager.capturePhoto(voiceNote: "")
+                    },
+                    onVolumeUpPressed: {
+                        cameraManager.capturePhoto(voiceNote: "")
+                    }
+                )
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .allowsHitTesting(false)
+                
                 let previewSize = calculatePreviewSize(
                     screenSize: screenSize,
                     ratio: cameraManager.selectedRatio,
@@ -71,7 +85,7 @@ struct ContentView: View {
             cameraManager.checkPermissions()
             speechRecognizer.requestPermissions()
             
-            // 🛑 [추가] 실시간 키워드("샷") 감지 시 자동 촬영 수행
+            // 키워드("샷") 감지 시 자동 촬영
             speechRecognizer.onKeywordDetected = { voiceNote in
                 cameraManager.capturePhoto(voiceNote: voiceNote)
             }
@@ -95,7 +109,7 @@ struct ContentView: View {
             HStack {
                 flashButton
                 Spacer()
-                pitchIndicator // 75도 기울기 상태 표시
+                pitchIndicator
                 Spacer()
                 ratioButton
                 Spacer()
@@ -144,7 +158,7 @@ struct ContentView: View {
             VStack {
                 flashButton
                 Spacer()
-                pitchIndicator // 75도 기울기 상태 표시
+                pitchIndicator
                 Spacer()
                 ratioButton
                 Spacer()
@@ -203,7 +217,6 @@ struct ContentView: View {
         .cornerRadius(15)
     }
     
-    // 🛑 [수정] startRecording 호출 시 cameraManager 전달
     private var speakerButton: some View {
         Button(action: {
             if speechRecognizer.isRecording {
@@ -254,7 +267,6 @@ struct ContentView: View {
             .cornerRadius(10)
     }
     
-    // 🛑 [수정] startRecording 호출 시 cameraManager 전달
     private var shutterButton: some View {
         Circle()
             .stroke(speechRecognizer.isRecording ? Color.red : Color.white, lineWidth: 4)
@@ -333,4 +345,3 @@ struct ContentView: View {
         }
     }
 }
-

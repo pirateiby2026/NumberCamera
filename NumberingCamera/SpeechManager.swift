@@ -216,3 +216,4 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
+
