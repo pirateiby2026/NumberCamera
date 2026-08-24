@@ -1,4 +1,3 @@
-
 import SwiftUI
 import MediaPlayer
 import Speech
@@ -6,7 +5,6 @@ import AVFoundation
 
 // MARK: - ContentView
 struct ContentView: View {
-    // 🛑 [수정 1] @StateObject 대신 @EnvironmentObject 사용 (인스턴스 중복 생성 방지)
     @EnvironmentObject var cameraManager: CameraManager
     @EnvironmentObject var speechRecognizer: SpeechRecognizer
     
@@ -72,6 +70,11 @@ struct ContentView: View {
         .onAppear {
             cameraManager.checkPermissions()
             speechRecognizer.requestPermissions()
+            
+            // 🛑 [추가] 실시간 키워드("샷") 감지 시 자동 촬영 수행
+            speechRecognizer.onKeywordDetected = { voiceNote in
+                cameraManager.capturePhoto(voiceNote: voiceNote)
+            }
         }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
@@ -200,12 +203,13 @@ struct ContentView: View {
         .cornerRadius(15)
     }
     
+    // 🛑 [수정] startRecording 호출 시 cameraManager 전달
     private var speakerButton: some View {
         Button(action: {
             if speechRecognizer.isRecording {
                 speechRecognizer.stopRecording { _ in }
             } else {
-                speechRecognizer.startRecording()
+                speechRecognizer.startRecording(cameraManager: cameraManager)
             }
         }) {
             Image(systemName: speechRecognizer.isRecording ? "speaker.wave.2.fill" : "speaker.slash.fill")
@@ -250,7 +254,7 @@ struct ContentView: View {
             .cornerRadius(10)
     }
     
-    // 🛑 [수정 2] 셔터 버튼 제스처 루프 제어
+    // 🛑 [수정] startRecording 호출 시 cameraManager 전달
     private var shutterButton: some View {
         Circle()
             .stroke(speechRecognizer.isRecording ? Color.red : Color.white, lineWidth: 4)
@@ -264,19 +268,16 @@ struct ContentView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
-                        // 손가락을 댔을 때 단 한 번만 실행되도록 보락(Guard) 처리
                         if !speechRecognizer.isRecording {
-                            speechRecognizer.startRecording()
+                            speechRecognizer.startRecording(cameraManager: cameraManager)
                         }
                     }
                     .onEnded { _ in
-                        // 손을 뗐을 때 녹음 중단 및 사진 촬영
                         if speechRecognizer.isRecording {
                             speechRecognizer.stopRecording { voiceNote in
                                 cameraManager.capturePhoto(voiceNote: voiceNote)
                             }
                         } else {
-                            // 일반 단축 터치 시에도 사진 촬영 진행
                             cameraManager.capturePhoto(voiceNote: "")
                         }
                     }
@@ -332,3 +333,4 @@ struct ContentView: View {
         }
     }
 }
+

@@ -13,6 +13,10 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
     @Published var transcribedText: String = ""
     @Published var isRecording: Bool = false
     
+    // MARK: - 촬영 및 공백 제어용 콜백 & 타임스탬프
+    var onKeywordDetected: ((String) -> Void)?
+    private var lastExecutionTime: Date = Date.distantPast
+    
     // MARK: - 사용자 정의 사전
     @Published var customDictionary: [String: String] = [:] {
         didSet {
@@ -32,8 +36,8 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         AVAudioApplication.requestRecordPermission { _ in }
     }
     
-    func startRecording() {
-        // 기존 작업 완전히 정지 및 초기화
+    // 🛑 [수정] CameraManager 전달받아 설정(샷 키워드, 공백 키워드) 실시간 적용
+    func startRecording(cameraManager: CameraManager? = nil) {
         if recognitionTask != nil {
             recognitionTask?.cancel()
             recognitionTask = nil
@@ -48,7 +52,6 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            // 🛑 [수정 1] 카메라와 충돌하는 .videoRecording 대신 .playAndRecord 사용
             try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
@@ -61,8 +64,8 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         recognitionRequest.shouldReportPartialResults = true
         
         let inputNode = audioEngine.inputNode
-        
         let recordingFormat = inputNode.outputFormat(forBus: 0)
+        
         guard recordingFormat.sampleRate > 0 else {
             print("유효하지 않은 오디오 포맷 샘플 레이트입니다.")
             return
@@ -86,17 +89,47 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         }
         
         recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            guard let self = self else { return }
+            
             if let result = result {
                 let rawText = result.bestTranscription.formattedString
+                
                 DispatchQueue.main.async {
-                    self?.transcribedText = self?.processRecognizedText(rawText) ?? rawText
+                    // 1. 사용자 사전 치환 적용
+                    let processed = self.processRecognizedText(rawText)
+                    self.transcribedText = processed
+                    
+                    // 2. Settings에서 변경한 최신 키워드 가져오기
+                    let shotKeyword = cameraManager?.shotKeyword ?? "샷"
+                    let blankKeyword = cameraManager?.blankKeyword ?? "공백"
+                    
+                    // 3. 실시간 "촬영 키워드" 감지 로직
+                    if processed.contains(shotKeyword) {
+                        let now = Date()
+                        if now.timeIntervalSince(self.lastExecutionTime) > 1.0 { // 중복 촬영 방지
+                            self.lastExecutionTime = now
+                            
+                            // "샷" 키워드 제거
+                            var cleanedNote = processed.replacingOccurrences(of: shotKeyword, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                            
+                            // "공백" 키워드 처리 (괄호 아예 안 붙도록 비움)
+                            if cleanedNote == blankKeyword || cleanedNote.isEmpty {
+                                cleanedNote = ""
+                            }
+                            
+                            self.stopRecording { _ in
+                                self.onKeywordDetected?(cleanedNote)
+                            }
+                        }
+                    }
                 }
             }
+            
             if error != nil || (result?.isFinal ?? false) {
-                self?.audioEngine.stop()
+                self.audioEngine.stop()
                 inputNode.removeTap(onBus: 0)
-                self?.recognitionRequest = nil
-                self?.recognitionTask = nil
+                self.recognitionRequest = nil
+                self.recognitionTask = nil
             }
         }
     }
@@ -109,7 +142,6 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         
         recognitionRequest?.endAudio()
         
-        // 🛑 [수정 2 - 핵심] 오디오 세션을 비활성화하여 카메라 시스템으로 권한 완전 반환
         let audioSession = AVAudioSession.sharedInstance()
         do {
             try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
@@ -147,6 +179,7 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
     func processRecognizedText(_ rawText: String) -> String {
         var text = rawText
         
+        // Settings / 사용자 정의 사전 동적 치환
         for (key, value) in customDictionary {
             text = text.replacingOccurrences(of: key, with: value)
         }

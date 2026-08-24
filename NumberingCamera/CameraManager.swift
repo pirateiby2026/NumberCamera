@@ -32,7 +32,14 @@ class CameraManager: NSObject, ObservableObject {
     @Published var selectedRatio: AspectRatioOption = .ratio4_3
     @Published var customOrientation: AVCaptureVideoOrientation = .portrait
     
-    // [추가] UI 연동용 75도 기울기 감지 상태 변수
+    // [추가] SettingsView 및 SpeechManager 연동용 커스텀 키워드 프로퍼티
+    @Published var shotKeyword: String = "샷"
+    @Published var blankKeyword: String = "공백"
+    
+    // [추가] 볼륨 Down 버튼 감지 시 마이크 활성화를 위한 이벤트 퍼블리셔
+    let volumeDownPressed = PassthroughSubject<Void, Never>()
+    
+    // UI 연동용 75도 기울기 감지 상태 변수
     @Published var isPitchValid: Bool = false
     @Published var currentPitchAngle: Double = 0.0
     
@@ -45,6 +52,18 @@ class CameraManager: NSObject, ObservableObject {
     private var isManualNumberSet: Bool = false
     private var cancellables = Set<AnyCancellable>()
     
+    // 볼륨키 중복 제어 및 볼륨 Up/Down 판별용 변수
+    private var previousVolume: Float = 0.5
+    private var lastCaptureTime: Date = Date.distantPast
+    
+    // 비동기 사진 저장 동기화를 위한 메타데이터 큐
+    private struct PhotoRequest {
+        let number: Int
+        let prefix: String
+        let voiceNote: String
+    }
+    private var pendingRequests: [PhotoRequest] = []
+    
     let session = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
     private var videoDeviceInput: AVCaptureDeviceInput?
@@ -54,7 +73,6 @@ class CameraManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
-        // 1번 코드의 동기적 스레드 초기화 방식을 적용하여 모션 및 카메라 동기화 안정화
         setupSession()
         setupVolumeButtonHandler()
         startMotionUpdates()
@@ -94,13 +112,11 @@ class CameraManager: NSObject, ObservableObject {
             newOrientation = .landscapeLeft
         }
         
-        // [추가 및 보완] 75도 기울기 각도 계산 및 UI 바인딩 변수 업데이트
         let pitchRadians = atan2(y, sqrt(x * x + z * z))
         let pitchDegrees = abs(pitchRadians * 180.0 / .pi)
         
         DispatchQueue.main.async {
             self.currentPitchAngle = pitchDegrees
-            // 75도 오차범위 ±5도 이내 감지 (70도 ~ 80도 사이)
             self.isPitchValid = abs(pitchDegrees - 75.0) <= 5.0
             
             if let newOrientation = newOrientation, newOrientation != self.customOrientation {
@@ -109,15 +125,34 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
+    // MARK: - 볼륨 버튼 감지 (Up: 사진 촬영 / Down: 마이크 활성화)
     private func setupVolumeButtonHandler() {
         let audioSession = AVAudioSession.sharedInstance()
         try? audioSession.setCategory(.ambient, options: .mixWithOthers)
         
+        self.previousVolume = audioSession.outputVolume
+        
         audioSession.publisher(for: \.outputVolume)
             .dropFirst()
-            .sink { [weak self] _ in
+            .sink { [weak self] newVolume in
+                guard let self = self else { return }
+                
+                let now = Date()
+                // 0.5초 이내 연쇄 이벤트 무시
+                guard now.timeIntervalSince(self.lastCaptureTime) > 0.5 else { return }
+                self.lastCaptureTime = now
+                
+                let isUp = newVolume > self.previousVolume
+                self.previousVolume = newVolume
+                
                 DispatchQueue.main.async {
-                    self?.capturePhoto()
+                    if isUp {
+                        // 볼륨 UP: 사진 촬영
+                        self.capturePhoto()
+                    } else {
+                        // 볼륨 DOWN: 마이크 활성화 이벤트 전송
+                        self.volumeDownPressed.send()
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -140,7 +175,6 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // 백그라운드 진입 후 복귀 시 프리뷰 복구용
     func resumeSession() {
         startSession()
     }
@@ -318,11 +352,20 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // 음성 노트(voiceNote) 지원 매개변수를 추가한 캡처 함수
+    // MARK: - 사진 캡처 (눌린 시점의 번호 즉시 증가 및 동기화)
     func capturePhoto(voiceNote: String = "") {
-        self.pendingVoiceNote = voiceNote
-        let settings = AVCapturePhotoSettings()
+        let currentPrefix = self.prefixText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validPrefix = currentPrefix.isEmpty ? "IMG" : currentPrefix
+        let targetNumber = self.currentNumber
         
+        // 셔터 누른 즉시 번호 1 증가 (UI 동기화 문제 해결)
+        self.currentNumber += 1
+        
+        // 해당 촬영 요청건에 대한 메타데이터 큐에 등록
+        let request = PhotoRequest(number: targetNumber, prefix: validPrefix, voiceNote: voiceNote)
+        pendingRequests.append(request)
+        
+        let settings = AVCapturePhotoSettings()
         if let photoConnection = photoOutput.connection(with: .video) {
             photoConnection.videoOrientation = customOrientation
         }
@@ -376,41 +419,29 @@ class CameraManager: NSObject, ObservableObject {
 
 extension CameraManager: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        guard !pendingRequests.isEmpty else { return }
+        let request = pendingRequests.removeFirst()
+        
         guard let imageData = photo.fileDataRepresentation(),
               let originalImage = UIImage(data: imageData) else { return }
         
-        // 1. 촬영 시점의 접두어, 번호, 음성노트 스냅샷
-        let currentPrefix = self.prefixText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let validPrefix = currentPrefix.isEmpty ? "IMG" : currentPrefix
-        let photoNumber = self.currentNumber
-        let note = self.pendingVoiceNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // 다음 번호 미리 증가 및 사용 완료한 음성노트 초기화
-        DispatchQueue.main.async {
-            self.currentNumber += 1
-            self.pendingVoiceNote = ""
-        }
-        
-        // 2. 이미지 크롭 처리
+        let note = request.voiceNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let croppedImage = self.cropImageToRatio(originalImage, ratio: self.selectedRatio)
         guard let finalImageData = croppedImage.jpegData(compressionQuality: 0.95) else { return }
         
-        // 3. 파일명 포맷 생성
         let formattedName: String
         if note.isEmpty {
-            formattedName = String(format: "%@_%04d.jpg", validPrefix, photoNumber)
+            formattedName = String(format: "%@_%04d.jpg", request.prefix, request.number)
         } else {
-            formattedName = String(format: "%@_%04d(%@).jpg", validPrefix, photoNumber, note)
+            formattedName = String(format: "%@_%04d(%@).jpg", request.prefix, request.number, note)
         }
         
-        // 4. 임시 디렉토리에 해당 파일명으로 저장
         let tempDirectory = FileManager.default.temporaryDirectory
         let tempFileURL = tempDirectory.appendingPathComponent(formattedName)
         
         do {
             try finalImageData.write(to: tempFileURL)
             
-            // 5. Photos 라이브러리에 원본 파일명 옵션 지정 후 저장
             PHPhotoLibrary.shared().performChanges({
                 let options = PHAssetResourceCreationOptions()
                 options.originalFilename = formattedName
@@ -418,7 +449,6 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
                 let creationRequest = PHAssetCreationRequest.forAsset()
                 creationRequest.addResource(with: .photo, fileURL: tempFileURL, options: options)
             }) { success, error in
-                // 저장 완료 후 임시 파일 삭제
                 try? FileManager.default.removeItem(at: tempFileURL)
                 
                 if let error = error {
@@ -432,4 +462,3 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         }
     }
 }
-
