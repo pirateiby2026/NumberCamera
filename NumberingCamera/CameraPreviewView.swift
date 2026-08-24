@@ -73,7 +73,9 @@ class PreviewUIView: UIView {
 
     func updateOrientation(_ orientation: AVCaptureVideoOrientation) {
         guard let connection = videoPreviewLayer.connection, connection.isVideoOrientationSupported else { return }
-        connection.videoOrientation = orientation
+        if connection.videoOrientation != orientation {
+            connection.videoOrientation = orientation
+        }
     }
 
     private func setupGestures() {

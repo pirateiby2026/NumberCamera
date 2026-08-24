@@ -65,9 +65,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6C521CC5302C271800B11CE1 /* Build configuration list for PBXNativeTarget "NumberingCamera" */;
 			buildPhases = (
-				6C521CB6302C271800B11CE1 /* Sources */,
 				6C521CB7302C271800B11CE1 /* Frameworks */,
 				6C521CB8302C271800B11CE1 /* Resources */,
+				6C28E70A303BF0B700123AB7 /* Sources */,
 			);
 			buildRules = (
 			);
@@ -128,7 +128,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		6C521CB6302C271800B11CE1 /* Sources */ = {
+		6C28E70A303BF0B700123AB7 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -267,7 +267,7 @@
 				DEVELOPMENT_TEAM = H2Q5F67J76;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NumberCamera/Info.plist;
+				INFOPLIST_FILE = NumberingCamera/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NumberingCamera;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "사진촬영 및 번호 부착용 ";
@@ -307,7 +307,7 @@
 				DEVELOPMENT_TEAM = H2Q5F67J76;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NumberCamera/Info.plist;
+				INFOPLIST_FILE = NumberingCamera/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NumberingCamera;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "사진촬영 및 번호 부착용 ";

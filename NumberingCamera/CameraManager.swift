@@ -32,6 +32,10 @@ class CameraManager: NSObject, ObservableObject {
     @Published var selectedRatio: AspectRatioOption = .ratio4_3
     @Published var customOrientation: AVCaptureVideoOrientation = .portrait
     
+    // [추가] UI 연동용 75도 기울기 감지 상태 변수
+    @Published var isPitchValid: Bool = false
+    @Published var currentPitchAngle: Double = 0.0
+    
     // 촬영 대기 중인 음성 노트 저장용
     private var pendingVoiceNote: String = ""
     
@@ -74,7 +78,9 @@ class CameraManager: NSObject, ObservableObject {
     private func processAccelerometerData(_ acceleration: CMAcceleration) {
         let x = acceleration.x
         let y = acceleration.y
-        let threshold = sin(75.0 * .pi / 180.0) // 75도
+        let z = acceleration.z
+        
+        let threshold = sin(75.0 * .pi / 180.0) // 75도 (약 0.9659)
         
         var newOrientation: AVCaptureVideoOrientation?
         
@@ -88,8 +94,16 @@ class CameraManager: NSObject, ObservableObject {
             newOrientation = .landscapeLeft
         }
         
-        if let newOrientation = newOrientation, newOrientation != customOrientation {
-            DispatchQueue.main.async {
+        // [추가 및 보완] 75도 기울기 각도 계산 및 UI 바인딩 변수 업데이트
+        let pitchRadians = atan2(y, sqrt(x * x + z * z))
+        let pitchDegrees = abs(pitchRadians * 180.0 / .pi)
+        
+        DispatchQueue.main.async {
+            self.currentPitchAngle = pitchDegrees
+            // 75도 오차범위 ±5도 이내 감지 (70도 ~ 80도 사이)
+            self.isPitchValid = abs(pitchDegrees - 75.0) <= 5.0
+            
+            if let newOrientation = newOrientation, newOrientation != self.customOrientation {
                 self.customOrientation = newOrientation
             }
         }
@@ -418,3 +432,4 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         }
     }
 }
+

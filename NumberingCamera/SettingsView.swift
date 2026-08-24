@@ -6,6 +6,9 @@ struct SettingsView: View {
     @State private var inputNumber: String = ""
     @Environment(\.dismiss) private var dismiss
     
+    // 키보드 제어용 FocusState
+    @FocusState private var isPrefixFocused: Bool
+    
     private var isValidNumber: Bool {
         guard let num = Int(inputNumber) else { return false }
         return num > 0
@@ -23,6 +26,7 @@ struct SettingsView: View {
                         Spacer()
                         TextField("예: 석탄부두 1BL", text: $inputPrefix)
                             .multilineTextAlignment(.trailing)
+                            .focused($isPrefixFocused)
                     }
                     
                     HStack {
@@ -55,6 +59,17 @@ struct SettingsView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") {
                         dismiss()
+                    }
+                }
+                
+                // 키보드 닫기 도구 버튼 추가
+                ToolbarItem(placement: .keyboard) {
+                    HStack {
+                        Spacer()
+                        Button("완료") {
+                            isPrefixFocused = false
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
                     }
                 }
             }

@@ -1,3 +1,4 @@
+
 import SwiftUI
 import MediaPlayer
 import Speech
@@ -5,10 +6,11 @@ import AVFoundation
 
 // MARK: - ContentView
 struct ContentView: View {
-    @StateObject private var cameraManager = CameraManager()
-    @StateObject private var speechRecognizer = SpeechRecognizer()
-    @State private var isShowingSettings = false
+    // 🛑 [수정 1] @StateObject 대신 @EnvironmentObject 사용 (인스턴스 중복 생성 방지)
+    @EnvironmentObject var cameraManager: CameraManager
+    @EnvironmentObject var speechRecognizer: SpeechRecognizer
     
+    @State private var isShowingSettings = false
     @Environment(\.scenePhase) private var scenePhase
     
     var isLandscape: Bool {
@@ -90,6 +92,8 @@ struct ContentView: View {
             HStack {
                 flashButton
                 Spacer()
+                pitchIndicator // 75도 기울기 상태 표시
+                Spacer()
                 ratioButton
                 Spacer()
                 settingsButton
@@ -111,10 +115,10 @@ struct ContentView: View {
             zoomControlBar
                 .padding(.bottom, 20)
             
-            // 하단 영역: 스피커 버튼을 맨 좌측에 배치하고 셔터 버튼을 화면 중앙에 정렬
+            // 하단 영역
             HStack(spacing: 0) {
                 speakerButton
-                    .padding(.leading, 24) // 맨 좌측 여백
+                    .padding(.leading, 24)
                 
                 Spacer()
                 
@@ -122,7 +126,6 @@ struct ContentView: View {
                 
                 Spacer()
                 
-                // 좌우 균형 맞춤용 더미 공간 (스피커 버튼 크기 + 여백)
                 Color.clear
                     .frame(width: 44 + 24, height: 44)
             }
@@ -138,6 +141,8 @@ struct ContentView: View {
             VStack {
                 flashButton
                 Spacer()
+                pitchIndicator // 75도 기울기 상태 표시
+                Spacer()
                 ratioButton
                 Spacer()
                 settingsButton
@@ -147,27 +152,21 @@ struct ContentView: View {
             
             Spacer()
             
-            // 우측 영역: 사진번호 태그 -> 스피커 버튼 -> 셔터 버튼 -> 하단 배율 숫자
+            // 우측 영역
             VStack(spacing: 0) {
                 numberTag
                     .padding(.top, 30)
                 
-                // 상단 번호표와 스피커 사이 유연한 공간
                 Spacer().frame(height: 16)
                 
-                // 셔터 위쪽(사진번호 아래 영역)으로 이동한 스피커 버튼
                 speakerButton
                 
-                // 스피커와 셔터 사이 여백
                 Spacer()
                 
-                // 셔터 버튼
                 shutterButton
                 
-                // 셔터와 하단 배율 숫자 사이 공간
                 Spacer()
                 
-                // 하단 배율 조절 바 (숫자)
                 zoomControlBar
                     .padding(.bottom, 30)
             }
@@ -185,6 +184,20 @@ struct ContentView: View {
                 .background(Color.black.opacity(0.4))
                 .clipShape(Circle())
         }
+    }
+    
+    private var pitchIndicator: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "gyroscope")
+                .font(.system(size: 14, weight: .bold))
+            Text("\(Int(cameraManager.currentPitchAngle))°")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+        }
+        .foregroundColor(cameraManager.isPitchValid ? .yellow : .gray)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.black.opacity(0.4))
+        .cornerRadius(15)
     }
     
     private var speakerButton: some View {
@@ -237,6 +250,7 @@ struct ContentView: View {
             .cornerRadius(10)
     }
     
+    // 🛑 [수정 2] 셔터 버튼 제스처 루프 제어
     private var shutterButton: some View {
         Circle()
             .stroke(speechRecognizer.isRecording ? Color.red : Color.white, lineWidth: 4)
@@ -250,13 +264,20 @@ struct ContentView: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
+                        // 손가락을 댔을 때 단 한 번만 실행되도록 보락(Guard) 처리
                         if !speechRecognizer.isRecording {
                             speechRecognizer.startRecording()
                         }
                     }
                     .onEnded { _ in
-                        speechRecognizer.stopRecording { voiceNote in
-                            cameraManager.capturePhoto(voiceNote: voiceNote)
+                        // 손을 뗐을 때 녹음 중단 및 사진 촬영
+                        if speechRecognizer.isRecording {
+                            speechRecognizer.stopRecording { voiceNote in
+                                cameraManager.capturePhoto(voiceNote: voiceNote)
+                            }
+                        } else {
+                            // 일반 단축 터치 시에도 사진 촬영 진행
+                            cameraManager.capturePhoto(voiceNote: "")
                         }
                     }
             )
