@@ -32,11 +32,11 @@ class CameraManager: NSObject, ObservableObject {
     @Published var selectedRatio: AspectRatioOption = .ratio4_3
     @Published var customOrientation: AVCaptureVideoOrientation = .portrait
     
-    // [추가] SettingsView 및 SpeechManager 연동용 커스텀 키워드 프로퍼티
+    // SettingsView 및 SpeechManager 연동용 커스텀 키워드 프로퍼티
     @Published var shotKeyword: String = "샷"
     @Published var blankKeyword: String = "공백"
     
-    // [추가] 볼륨 Down 버튼 감지 시 마이크 활성화를 위한 이벤트 퍼블리셔
+    // 볼륨 Down 버튼 감지 시 마이크 활성화를 위한 이벤트 퍼블리셔
     let volumeDownPressed = PassthroughSubject<Void, Never>()
     
     // UI 연동용 75도 기울기 감지 상태 변수
@@ -148,7 +148,7 @@ class CameraManager: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     if isUp {
                         // 볼륨 UP: 사진 촬영
-                        self.capturePhoto()
+                        self.capturePhoto(voiceNote: "")
                     } else {
                         // 볼륨 DOWN: 마이크 활성화 이벤트 전송
                         self.volumeDownPressed.send()

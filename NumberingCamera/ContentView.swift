@@ -22,11 +22,12 @@ struct ContentView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                // 🛑 [핵심 보완] 볼륨 버튼 이벤트 가로채기 핸들러 배치
-                // 1x1 크기로 실제 화면에 렌더링되도록 배치하여 시스템 볼륨 HUD 출력을 방지합니다.
+                // 🛑 볼륨 버튼 이벤트 가로채기 핸들러 배치
                 VolumeButtonHandlerView(
                     onVolumeDownPressed: {
-                        cameraManager.capturePhoto(voiceNote: "")
+                        if !speechRecognizer.isRecording {
+                            speechRecognizer.startRecording(cameraManager: cameraManager)
+                        }
                     },
                     onVolumeUpPressed: {
                         cameraManager.capturePhoto(voiceNote: "")
@@ -90,6 +91,11 @@ struct ContentView: View {
                 cameraManager.capturePhoto(voiceNote: voiceNote)
             }
         }
+        .onReceive(cameraManager.volumeDownPressed) { _ in
+            if !speechRecognizer.isRecording {
+                speechRecognizer.startRecording(cameraManager: cameraManager)
+            }
+        }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
                 cameraManager.checkPermissions()
@@ -108,8 +114,6 @@ struct ContentView: View {
             // 상단 컨트롤 바
             HStack {
                 flashButton
-                Spacer()
-                pitchIndicator
                 Spacer()
                 ratioButton
                 Spacer()
@@ -158,8 +162,6 @@ struct ContentView: View {
             VStack {
                 flashButton
                 Spacer()
-                pitchIndicator
-                Spacer()
                 ratioButton
                 Spacer()
                 settingsButton
@@ -201,20 +203,6 @@ struct ContentView: View {
                 .background(Color.black.opacity(0.4))
                 .clipShape(Circle())
         }
-    }
-    
-    private var pitchIndicator: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "gyroscope")
-                .font(.system(size: 14, weight: .bold))
-            Text("\(Int(cameraManager.currentPitchAngle))°")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-        }
-        .foregroundColor(cameraManager.isPitchValid ? .yellow : .gray)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color.black.opacity(0.4))
-        .cornerRadius(15)
     }
     
     private var speakerButton: some View {
