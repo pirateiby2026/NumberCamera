@@ -125,7 +125,7 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - 볼륨 버튼 감지 (Up: 사진 촬영 / Down: 마이크 활성화)
+    // MARK: - 볼륨 버튼 감지 (이중 촬영 방지 보완)
     private func setupVolumeButtonHandler() {
         let audioSession = AVAudioSession.sharedInstance()
         try? audioSession.setCategory(.ambient, options: .mixWithOthers)
@@ -146,11 +146,9 @@ class CameraManager: NSObject, ObservableObject {
                 self.previousVolume = newVolume
                 
                 DispatchQueue.main.async {
-                    if isUp {
-                        // 볼륨 UP: 사진 촬영
-                        self.capturePhoto(voiceNote: "")
-                    } else {
-                        // 볼륨 DOWN: 마이크 활성화 이벤트 전송
+                    if !isUp {
+                        // 🛑 [중요] 볼륨 DOWN인 경우에만 마이크 활성화 이벤트 전송
+                        // 볼륨 UP 처리 시 직접 capturePhoto()를 호출하던 것을 제거하여 VolumeButtonHandlerView와의 중복 촬영을 차단함
                         self.volumeDownPressed.send()
                     }
                 }

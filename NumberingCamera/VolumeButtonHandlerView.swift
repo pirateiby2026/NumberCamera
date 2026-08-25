@@ -43,6 +43,7 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
         weak var slider: UISlider?
         private var isProcessing = false
         private var initialVolume: Float = 0.5
+        private var lastTriggerTime = Date.distantPast
 
         init(onVolumeDownPressed: @escaping () -> Void, onVolumeUpPressed: @escaping () -> Void) {
             self.onVolumeDownPressed = onVolumeDownPressed
@@ -75,8 +76,12 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
         }
 
         @objc private func sliderValueChanged(_ sender: UISlider) {
-            guard !isProcessing else { return }
+            let now = Date()
+            // 0.4초 이내의 연쇄 이벤트를 완벽 차단
+            guard !isProcessing, now.timeIntervalSince(lastTriggerTime) > 0.4 else { return }
+            
             isProcessing = true
+            lastTriggerTime = now
 
             let currentVolume = sender.value
 
@@ -95,7 +100,7 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
                 sender.setValue(0.5, animated: false)
                 self.initialVolume = 0.5
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     self.isProcessing = false
                 }
             }

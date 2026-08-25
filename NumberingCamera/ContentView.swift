@@ -25,12 +25,20 @@ struct ContentView: View {
                 // 🛑 볼륨 버튼 이벤트 가로채기 핸들러 배치
                 VolumeButtonHandlerView(
                     onVolumeDownPressed: {
+                        // 볼륨 DOWN: 마이크가 안 켜져 있을 때만 녹음 시작
                         if !speechRecognizer.isRecording {
                             speechRecognizer.startRecording(cameraManager: cameraManager)
                         }
                     },
                     onVolumeUpPressed: {
-                        cameraManager.capturePhoto(voiceNote: "")
+                        // 볼륨 UP: 마이크가 켜져 있다면 녹음 종료 후 텍스트 전달하여 촬영, 아니면 바로 촬영
+                        if speechRecognizer.isRecording {
+                            speechRecognizer.stopRecording { voiceNote in
+                                cameraManager.capturePhoto(voiceNote: voiceNote)
+                            }
+                        } else {
+                            cameraManager.capturePhoto(voiceNote: "")
+                        }
                     }
                 )
                 .frame(width: 1, height: 1)

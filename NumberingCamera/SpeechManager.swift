@@ -167,10 +167,15 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         if let savedDict = UserDefaults.standard.dictionary(forKey: dictionaryKey) as? [String: String] {
             self.customDictionary = savedDict
         } else {
+            // 이미지에 표시된 기본 예약어로 초기화
             self.customDictionary = [
+                "넘버": "NO.",
                 "블럭": "BL",
                 "블록": "BL",
-                "균백": "균열및백태"
+                "스테2션": "Sta",
+                "스테이션": "Sta",
+                "이": "2",
+                "파2브": "5"
             ]
         }
     }
@@ -179,9 +184,12 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
     func processRecognizedText(_ rawText: String) -> String {
         var text = rawText
         
-        // Settings / 사용자 정의 사전 동적 치환
-        for (key, value) in customDictionary {
-            text = text.replacingOccurrences(of: key, with: value)
+        // 1. Settings / 사용자 정의 사전 동적 치환 (긴 단어 우선 치환)
+        let sortedCustomKeys = customDictionary.keys.sorted { $0.count > $1.count }
+        for key in sortedCustomKeys {
+            if let value = customDictionary[key] {
+                text = text.replacingOccurrences(of: key, with: value)
+            }
         }
         
         let complexAlphabetMapping: [String: String] = [
@@ -216,4 +224,3 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
-
