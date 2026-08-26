@@ -32,9 +32,21 @@ class CameraManager: NSObject, ObservableObject {
     @Published var selectedRatio: AspectRatioOption = .ratio4_3
     @Published var customOrientation: AVCaptureVideoOrientation = .portrait
     
-    // SettingsView 및 SpeechManager 연동용 커스텀 키워드 프로퍼티
-    @Published var shotKeyword: String = "샷"
-    @Published var blankKeyword: String = "공백"
+    // MARK: - UserDefaults 키 정의 및 연동 키워드 프로퍼티
+    private let shotKeywordKey = "SavedShotKeyword"
+    private let blankKeywordKey = "SavedBlankKeyword"
+    
+    // SettingsView 및 SpeechManager 연동용 커스텀 키워드 프로퍼티 (didSet으로 자동 저장)
+    @Published var shotKeyword: String = "샷" {
+        didSet {
+            UserDefaults.standard.set(shotKeyword, forKey: shotKeywordKey)
+        }
+    }
+    @Published var blankKeyword: String = "공백" {
+        didSet {
+            UserDefaults.standard.set(blankKeyword, forKey: blankKeywordKey)
+        }
+    }
     
     // 볼륨 Down 버튼 감지 시 마이크 활성화를 위한 이벤트 퍼블리셔
     let volumeDownPressed = PassthroughSubject<Void, Never>()
@@ -73,6 +85,15 @@ class CameraManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        
+        // 앱 실행 시 UserDefaults에 저장된 키워드 로드
+        if let savedShot = UserDefaults.standard.string(forKey: shotKeywordKey) {
+            self.shotKeyword = savedShot
+        }
+        if let savedBlank = UserDefaults.standard.string(forKey: blankKeywordKey) {
+            self.blankKeyword = savedBlank
+        }
+        
         setupSession()
         setupVolumeButtonHandler()
         startMotionUpdates()
