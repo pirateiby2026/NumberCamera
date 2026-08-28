@@ -2,7 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var cameraManager: CameraManager
-    @EnvironmentObject var speechRecognizer: SpeechRecognizer // 👈 추가: 맞춤 사전 제어용
+    @EnvironmentObject var speechRecognizer: SpeechRecognizer // 맞춤 사전 제어용
+    @StateObject private var wifiServer = WiFiServerManager() // Wi-Fi 서버 객체
     
     @State private var inputPrefix: String = ""
     @State private var inputNumber: String = ""
@@ -10,7 +11,7 @@ struct SettingsView: View {
     
     // 키보드 제어용 FocusState
     @FocusState private var isPrefixFocused: Bool
-    @FocusState private var isDictionaryFocused: Bool // 👈 추가: 맞춤 사전 입력 포커스
+    @FocusState private var isDictionaryFocused: Bool // 맞춤 사전 입력 포커스
     
     // 키워드 입력용 State
     @State private var shotKeywordInput: String = ""
@@ -28,6 +29,40 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                // 🌐 0. PC로 사진 전송 (Wi-Fi 파일 서버)
+                Section(
+                    header: Text("PC로 사진 전송 (Wi-Fi)"),
+                    footer: Text("아이폰과 PC가 같은 Wi-Fi에 연결되어 있어야 합니다. PC 인터넷 브라우저 주소창에 위 주소를 입력하세요.")
+                ) {
+                    Toggle("Wi-Fi 전송 서버 키기", isOn: Binding(
+                        get: { wifiServer.isRunning },
+                        set: { newValue in
+                            if newValue {
+                                wifiServer.startServer()
+                                UIApplication.shared.isIdleTimerDisabled = true // 화면 꺼짐 방지
+                            } else {
+                                wifiServer.stopServer()
+                                UIApplication.shared.isIdleTimerDisabled = false
+                            }
+                        }
+                    ))
+                    
+                    if wifiServer.isRunning {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("PC 접속 주소:")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            Text(wifiServer.serverURLString)
+                                .font(.title3)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                                .textSelection(.enabled)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                
                 // 1. 사진 이름 및 시작 번호 설정
                 Section(
                     header: Text("사진 이름 및 시작 번호 설정"),
@@ -75,8 +110,8 @@ struct SettingsView: View {
                         Spacer()
                         TextField("샷", text: $shotKeywordInput)
                             .multilineTextAlignment(.trailing)
-                            .onChange(of: shotKeywordInput) { val in
-                                cameraManager.shotKeyword = val.isEmpty ? "샷" : val
+                            .onChange(of: shotKeywordInput) { newValue in
+                                cameraManager.shotKeyword = newValue.isEmpty ? "샷" : newValue
                             }
                     }
                     
@@ -85,8 +120,8 @@ struct SettingsView: View {
                         Spacer()
                         TextField("공백", text: $blankKeywordInput)
                             .multilineTextAlignment(.trailing)
-                            .onChange(of: blankKeywordInput) { val in
-                                cameraManager.blankKeyword = val.isEmpty ? "공백" : val
+                            .onChange(of: blankKeywordInput) { newValue in
+                                cameraManager.blankKeyword = newValue.isEmpty ? "공백" : newValue
                             }
                     }
                 }
@@ -110,23 +145,21 @@ struct SettingsView: View {
                         .disabled(newKey.isEmpty || newValue.isEmpty)
                     }
                     
-                    List {
-                        ForEach(speechRecognizer.customDictionary.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
-                            HStack {
-                                Text(key)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Image(systemName: "arrow.right")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                Spacer()
-                                Text(value)
-                                    .foregroundColor(.blue)
-                                    .fontWeight(.bold)
-                            }
+                    ForEach(speechRecognizer.customDictionary.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        HStack {
+                            Text(key)
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Spacer()
+                            Text(value)
+                                .foregroundColor(.blue)
+                                .fontWeight(.bold)
                         }
-                        .onDelete(perform: deleteDictionaryItem)
                     }
+                    .onDelete(perform: deleteDictionaryItem)
                 }
             }
             .navigationTitle("설정")
@@ -134,6 +167,8 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("취소") {
+                        wifiServer.stopServer()
+                        UIApplication.shared.isIdleTimerDisabled = false
                         dismiss()
                     }
                 }
@@ -155,6 +190,10 @@ struct SettingsView: View {
                 inputNumber = String(cameraManager.currentNumber)
                 shotKeywordInput = cameraManager.shotKeyword
                 blankKeywordInput = cameraManager.blankKeyword
+            }
+            .onDisappear {
+                wifiServer.stopServer()
+                UIApplication.shared.isIdleTimerDisabled = false
             }
         }
     }

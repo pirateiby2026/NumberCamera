@@ -173,7 +173,10 @@ class SpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
                 "스테2션": "Sta",
                 "스테이션": "Sta",
                 "파2브": "5",
-                "넘버": "NO."
+                "넘버": "NO.",
+                "플러스": "+",
+                "다시": "-",
+                "E+": "2+"
             ]
         }
     }
