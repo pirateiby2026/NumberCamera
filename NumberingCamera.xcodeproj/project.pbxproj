@@ -98,7 +98,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "NumberingCamera" */;
+			buildConfigurationList = 6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "dㅇㅇㅇㅇㅇㅇ" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -340,7 +340,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "NumberingCamera" */ = {
+		6C521CB5302C271800B11CE1 /* Build configuration list for PBXProject "dㅇㅇㅇㅇㅇㅇ" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				6C521CC3302C271800B11CE1 /* Debug */,
