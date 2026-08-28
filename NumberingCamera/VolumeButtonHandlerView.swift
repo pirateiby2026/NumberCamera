@@ -11,12 +11,12 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UIView {
-        // 🛑 [중요] 화면 좌측 상단 (0,0) 위치에 2x2 크기로 배치 (iOS가 보이지 않는 뷰로 인식하지 못하게 함)
+        // iOS가 미사용 뷰로 오인하지 않도록 2x2 크기의 투명 컨테이너 생성
         let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
         containerView.backgroundColor = .clear
 
         let volumeView = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
-        volumeView.alpha = 0.05 // opacity를 너무 낮추지 않고 0.05로 유지
+        volumeView.alpha = 0.05
         volumeView.isUserInteractionEnabled = false
         
         containerView.addSubview(volumeView)
@@ -54,20 +54,20 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
         func setupSlider(_ slider: UISlider) {
             self.slider = slider
             
-            // 오디오 세션 활성화
+            // 오디오 세션 카테고리 설정 (SpeechRecognizer와 옵션 통합)
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker, .mixWithOthers])
+                try session.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
                 try session.setActive(true)
             } catch {
                 print("AudioSession Setup Error: \(error)")
             }
 
-            // 슬라이더 값을 중간(0.5)으로 고정
+            // 슬라이더 기준값(0.5) 고정
             slider.setValue(0.5, animated: false)
             initialVolume = 0.5
 
-            // 슬라이더 값 변경 감지 (물리 버튼 작동 시 UISlider 값이 즉시 변경됨)
+            // 물리 볼륨 버튼 조작 시 실시간 값 변경 감지
             slider.addTarget(self, action: #selector(sliderValueChanged(_:)), for: .valueChanged)
         }
 
@@ -77,7 +77,7 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
 
         @objc private func sliderValueChanged(_ sender: UISlider) {
             let now = Date()
-            // 0.4초 이내의 연쇄 이벤트를 완벽 차단
+            // 0.4초 이내 연쇄 동작 차단
             guard !isProcessing, now.timeIntervalSince(lastTriggerTime) > 0.4 else { return }
             
             isProcessing = true
@@ -96,7 +96,7 @@ struct VolumeButtonHandlerView: UIViewRepresentable {
                     self.onVolumeUpPressed()
                 }
 
-                // 연속 연타를 위해 다시 슬라이더 값을 0.5로 즉시 원복
+                // 연속 제어를 위해 슬라이더 값을 0.5로 재설정
                 sender.setValue(0.5, animated: false)
                 self.initialVolume = 0.5
 

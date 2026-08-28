@@ -48,7 +48,7 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
     
-    // 볼륨 Down 버튼 감지 시 마이크 활성화를 위한 이벤트 퍼블리셔
+    // 볼륨 Down 버튼 감지 시 마이크 활성화/토글을 위한 이벤트 퍼블리셔
     let volumeDownPressed = PassthroughSubject<Void, Never>()
     
     // UI 연동용 75도 기울기 감지 상태 변수
@@ -168,8 +168,7 @@ class CameraManager: NSObject, ObservableObject {
                 
                 DispatchQueue.main.async {
                     if !isUp {
-                        // 🛑 [중요] 볼륨 DOWN인 경우에만 마이크 활성화 이벤트 전송
-                        // 볼륨 UP 처리 시 직접 capturePhoto()를 호출하던 것을 제거하여 VolumeButtonHandlerView와의 중복 촬영을 차단함
+                        // 🛑 [중요] 볼륨 DOWN인 경우 마이크 토글 이벤트 전송
                         self.volumeDownPressed.send()
                     }
                 }

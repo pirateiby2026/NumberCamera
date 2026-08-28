@@ -22,16 +22,16 @@ struct ContentView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                // 🛑 볼륨 버튼 이벤트 가로채기 핸들러 배치
+                // 볼륨 버튼 이벤트 가로채기 핸들러 배치
                 VolumeButtonHandlerView(
                     onVolumeDownPressed: {
-                        // 볼륨 DOWN: 마이크가 안 켜져 있을 때만 녹음 시작
-                        if !speechRecognizer.isRecording {
+                        if speechRecognizer.isRecording {
+                            speechRecognizer.stopRecording { _ in }
+                        } else {
                             speechRecognizer.startRecording(cameraManager: cameraManager)
                         }
                     },
                     onVolumeUpPressed: {
-                        // 볼륨 UP: 마이크가 켜져 있다면 녹음 종료 후 텍스트 전달하여 촬영, 아니면 바로 촬영
                         if speechRecognizer.isRecording {
                             speechRecognizer.stopRecording { voiceNote in
                                 cameraManager.capturePhoto(voiceNote: voiceNote)
@@ -83,7 +83,7 @@ struct ContentView: View {
                 
                 // 2. 오버레이 컨트롤
                 if isLandscape {
-                    landscapeOverlay(screenSize: screenSize)
+                    landscapeOverlay(screenSize: screenSize, previewWidth: previewSize.width)
                 } else {
                     portraitOverlay(screenSize: screenSize)
                 }
@@ -94,13 +94,14 @@ struct ContentView: View {
             cameraManager.checkPermissions()
             speechRecognizer.requestPermissions()
             
-            // 키워드("샷") 감지 시 자동 촬영
             speechRecognizer.onKeywordDetected = { voiceNote in
                 cameraManager.capturePhoto(voiceNote: voiceNote)
             }
         }
         .onReceive(cameraManager.volumeDownPressed) { _ in
-            if !speechRecognizer.isRecording {
+            if speechRecognizer.isRecording {
+                speechRecognizer.stopRecording { _ in }
+            } else {
                 speechRecognizer.startRecording(cameraManager: cameraManager)
             }
         }
@@ -144,60 +145,73 @@ struct ContentView: View {
             zoomControlBar
                 .padding(.bottom, 20)
             
-            // 하단 영역
-            HStack(spacing: 0) {
+            // 하단 컨트롤 영역
+            // 화면 너비의 1/4 지점(25% - 좌측과 셔터버튼 중간)에 스피커 버튼을 강제로 위치시킴
+            ZStack(alignment: .leading) {
+                // 1. 셔터 버튼 (화면 중앙 정렬)
+                HStack {
+                    Spacer()
+                    shutterButton
+                    Spacer()
+                }
+                
+                // 2. 스피커 버튼 (화면 전체 폭의 25% 지점에 센터 배치)
                 speakerButton
-                    .padding(.leading, 24)
-                
-                Spacer()
-                
-                shutterButton
-                
-                Spacer()
-                
-                Color.clear
-                    .frame(width: 44 + 24, height: 44)
+                    .offset(x: (screenSize.width * 0.25) - 22) // 22는 스피커 버튼 크기(44)의 절반
             }
+            .frame(width: screenSize.width, height: 72)
             .padding(.bottom, 40)
         }
     }
     
     // MARK: - 가로 레이아웃 (Landscape)
     @ViewBuilder
-    private func landscapeOverlay(screenSize: CGSize) -> some View {
-        HStack(spacing: 0) {
-            // 좌측 컨트롤 바
-            VStack {
-                flashButton
+    private func landscapeOverlay(screenSize: CGSize, previewWidth: CGFloat) -> some View {
+        let previewRightEdge = (screenSize.width + previewWidth) / 2
+        let shutterSize: CGFloat = 72
+
+        ZStack {
+            HStack {
+                VStack(alignment: .leading, spacing: 0) {
+                    numberTag
+                        .padding(.top, 30)
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 20) {
+                        flashButton
+                        ratioButton
+                        settingsButton
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.leading, 30)
+                
                 Spacer()
-                ratioButton
-                Spacer()
-                settingsButton
             }
-            .padding(.vertical, 40)
-            .padding(.leading, 30)
             
-            Spacer()
-            
-            // 우측 영역
-            VStack(spacing: 0) {
-                numberTag
-                    .padding(.top, 30)
-                
-                Spacer().frame(height: 16)
-                
-                speakerButton
-                
+            HStack {
                 Spacer()
-                
-                shutterButton
-                
-                Spacer()
-                
-                zoomControlBar
-                    .padding(.bottom, 30)
+                VStack {
+                    Spacer()
+                    zoomControlBar
+                        .padding(.bottom, 30)
+                }
             }
-            .padding(.trailing, 30)
+            .frame(width: previewWidth, height: screenSize.height)
+
+            shutterButton
+                .position(
+                    x: previewRightEdge + (shutterSize / 2),
+                    y: 66
+                )
+
+            speakerButton
+                .position(
+                    x: previewRightEdge - 30,
+                    y: 130
+                )
         }
     }
     
